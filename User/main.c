@@ -30,10 +30,12 @@
 #include "py32f0xx_hal_i2c.h"
 #include "py32f0xx_bsp_printf.h"
 
+#include "charlie.h"
+
 // this print will slow the I2C read operation by a lot, but ESP32 should 
 // handle this well. 
-#define DEBUG_ISR_PRINT(...) printf(__VA_ARGS__); fflush(stdout);
-// #define DEBUG_ISR_PRINT(...) 
+// #define DEBUG_ISR_PRINT(...) printf(__VA_ARGS__); fflush(stdout);
+#define DEBUG_ISR_PRINT(...) 
 
 I2C_HandleTypeDef I2cHandle;
 void APP_ErrorHandler(void);
@@ -114,12 +116,106 @@ void HAL_I2C_ListenCpltCallback(I2C_HandleTypeDef *hi2c)
   HAL_I2C_EnableListen_IT(hi2c);
 }
 
+#define PIN_LED1 GPIO_PIN_5
+#define PIN_LED2 GPIO_PIN_6
+#define PIN_LED3 GPIO_PIN_8
+#define PIN_LED4 GPIO_PIN_4
+#define PIN_LED5 GPIO_PIN_3
+#define PIN_LED6 GPIO_PIN_2
+
+void charlieplexInit(void)
+{
+  // 8, 6, 5, 4
+  GPIO_InitTypeDef GPIO_InitStruct;
+
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  GPIO_InitStruct.Pin = GPIO_PIN_1 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6| GPIO_PIN_8| GPIO_PIN_12;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
+
+
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+
+  GPIO_InitStruct.Pin = GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+}
+
+
 int main(void)
 {
-  HAL_Init();                                 
+  HAL_Init();
+  charlieplexInit();
+  
+  segment_t segments[4] = {
+    {0, 1, 2, 3, 4, 5, 6},
+    {7, 8, 9, 10, 11, 12, 13},
+    {14, 15, 16, 17, 18, 19, 20},
+    {21, 22, 23, 24, 25, 26, 27}
+  };
+  charlie_t charlie = {
+    .pins = (uint16_t[]){
+      GPIO_PIN_1, GPIO_PIN_4, GPIO_PIN_5, 
+      GPIO_PIN_6, GPIO_PIN_8, GPIO_PIN_12},
+    .pinCount = 6
+  };
+
+  charlieInit(&charlie);
+  // for (int i = 0; i < 4; i++){
+  //     setSevenSegment(&charlie, &segments[i], i);
+  //     // drawSevenSegment(&charlie, &segments[i]);
+  // }
 
   BSP_USART_Config();
   printf("SystemClk is:%ld\r\n", SystemCoreClock);
+  fflush(stdout);
+  HAL_Delay(1000);
+
+  int number = 10;
+
+  // for (int i = 0; i < 4; i++){
+  //     setSevenSegment(&charlie, &segments[i], -1);
+  //     // drawSevenSegment(&charlie, &segments[i]);
+  // }
+  
+  while(1){
+    // HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
+    // // HAL_Delay(1);
+    // //delay for 1us
+    // printf("d");
+    // fflush(stdout);
+    
+    // for (int i = 0; i < 4; i++){
+    //     setSevenSegment(&charlie, &segments[i], number%10);
+    //     // drawSevenSegment(&charlie, &segments[i]);
+    // }
+    number++;
+    if (number > 30) number = 8;
+    printf("number %d\n\r", number);
+    for (int i = 0; i < 50; i++)
+    {
+      // charliePrint(&charlie);
+      charlieClear(&charlie);
+      charlieSetPixel(&charlie, 0, number, 1);
+      charlieSetPixel(&charlie, 0, number+1, 1);
+      charlieSetPixel(&charlie, 0, number+2, 1);
+      charlieRender(&charlie,false);
+    }
+  }
 
   APP_I2C_Config();
 

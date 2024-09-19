@@ -24,11 +24,11 @@ void BSP_USART_Config(void)
   DebugUartHandle.Init.StopBits     = UART_STOPBITS_1;
   DebugUartHandle.Init.Parity       = UART_PARITY_NONE;
   DebugUartHandle.Init.HwFlowCtl    = UART_HWCONTROL_NONE;
-  DebugUartHandle.Init.Mode         = UART_MODE_TX_RX;
+  DebugUartHandle.Init.Mode         = UART_MODE_TX;
 
   HAL_UART_Init(&DebugUartHandle);
 
-  DEBUG_USART_RX_GPIO_CLK_ENABLE();
+//   DEBUG_USART_RX_GPIO_CLK_ENABLE();
   DEBUG_USART_TX_GPIO_CLK_ENABLE();
 
   /**USART GPIO Configuration
@@ -36,16 +36,17 @@ void BSP_USART_Config(void)
     PA3     ------> USART2_RX
     */
   GPIO_InitStruct.Pin = DEBUG_USART_TX_PIN;
+//   GPIO_InitStruct.Pin = GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   GPIO_InitStruct.Alternate = DEBUG_USART_TX_AF;
   HAL_GPIO_Init(DEBUG_USART_TX_GPIO_PORT, &GPIO_InitStruct);
 
-  GPIO_InitStruct.Pin = DEBUG_USART_RX_PIN;
-  GPIO_InitStruct.Alternate = DEBUG_USART_RX_AF;
+//   GPIO_InitStruct.Pin = DEBUG_USART_RX_PIN;
+//   GPIO_InitStruct.Alternate = DEBUG_USART_RX_AF;
 
-  HAL_GPIO_Init(DEBUG_USART_RX_GPIO_PORT, &GPIO_InitStruct);
+//   HAL_GPIO_Init(DEBUG_USART_RX_GPIO_PORT, &GPIO_InitStruct);
 
   /* ENABLE NVIC */
   HAL_NVIC_SetPriority(DEBUG_USART_IRQ,0,1);
