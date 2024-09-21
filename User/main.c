@@ -125,7 +125,6 @@ void HAL_I2C_ListenCpltCallback(I2C_HandleTypeDef *hi2c)
 
 void charlieplexInit(void)
 {
-  // 8, 6, 5, 4
   GPIO_InitTypeDef GPIO_InitStruct;
 
   __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -143,16 +142,6 @@ void charlieplexInit(void)
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
-
-
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-
-  GPIO_InitStruct.Pin = GPIO_PIN_1;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 }
 
 
@@ -162,11 +151,12 @@ int main(void)
   charlieplexInit();
   
   segment_t segments[4] = {
-    {0, 1, 2, 3, 4, 5, 6},
-    {7, 8, 9, 10, 11, 12, 13},
-    {14, 15, 16, 17, 18, 19, 20},
-    {21, 22, 23, 24, 25, 26, 27}
+    {{2, 3, 7, 8, 13, 5, 1}},
+    {{27, 4, 6, 0, 20, 9, 24}},
+    {{11, 15, 10, 16, 12, 25, 14}},
+    {{21, 26, 18, 29, 28, 22, 17}}  
   };
+
   charlie_t charlie = {
     .pins = (uint16_t[]){
       GPIO_PIN_1, GPIO_PIN_4, GPIO_PIN_5, 
@@ -183,14 +173,18 @@ int main(void)
   BSP_USART_Config();
   printf("SystemClk is:%ld\r\n", SystemCoreClock);
   fflush(stdout);
-  HAL_Delay(1000);
+  // HAL_Delay(1000);
 
-  int number = 10;
+  int number = 64;
 
-  // for (int i = 0; i < 4; i++){
-  //     setSevenSegment(&charlie, &segments[i], -1);
-  //     // drawSevenSegment(&charlie, &segments[i]);
-  // }
+  for (int i = 0; i < 4; i++){
+      // printf("\n\rsetting %d\n\r", i);
+      setSevenSegment(&charlie, &segments[i], -1);
+      // for (int s = 0; s < 7; s++){
+      //   printf("%d ", segments[i].segmentNumber[s]);
+      // }
+      // drawSevenSegment(&charlie, &segments[i]);
+  }
   
   while(1){
     // HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
@@ -200,19 +194,23 @@ int main(void)
     // fflush(stdout);
     
     // for (int i = 0; i < 4; i++){
-    //     setSevenSegment(&charlie, &segments[i], number%10);
+    //     setSevenSegment(&charlie, &segments[i], -1);
     //     // drawSevenSegment(&charlie, &segments[i]);
     // }
+    // setSevenSegment(&charlie, &segments[number], 8);
+
     number++;
-    if (number > 30) number = 8;
+    if (number >= 30) number = 0;
     printf("number %d\n\r", number);
-    for (int i = 0; i < 50; i++)
+    charlieClear(&charlie);
+    charlieSetPixel(&charlie, 0, number, 1);
+    // setSevenSegment(&charlie, &segments[number], 8);
+
+    for (int i = 0; i < 150; i++)
     {
       // charliePrint(&charlie);
-      charlieClear(&charlie);
-      charlieSetPixel(&charlie, 0, number, 1);
-      charlieSetPixel(&charlie, 0, number+1, 1);
-      charlieSetPixel(&charlie, 0, number+2, 1);
+      // charlieClear(&charlie);
+      // charlieSetPixel(&charlie, 0, number, 1);
       charlieRender(&charlie,false);
     }
   }

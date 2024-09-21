@@ -13,7 +13,7 @@ typedef struct {
 } charlie_t;
 
 typedef struct {
-    uint8_t segmentNumber[7];
+    int segmentNumber[7];
 } segment_t;
 
 bool isSegmentActiveForNumber(int segmentNum, int number){
@@ -62,6 +62,7 @@ void drawSevenSegment(charlie_t* charlie, segment_t* segment){
 void setSevenSegment(charlie_t* charlie, segment_t* segment, int value){
     for (int i = 0; i < 7; i++){
         charlie->matrixBuf[segment->segmentNumber[i]] = isSegmentActiveForNumber(i, value);
+        // charlieSetPixel(charlie, 0, segment->segmentNumber[i], isSegmentActiveForNumber(i, value));
     }
 }
 
@@ -167,7 +168,7 @@ void charlieRender(charlie_t* charlie, int debug){
             BYTE_TO_BINARY(charlie->pins[i])
         );
         HAL_GPIO_WritePin(GPIOA, charlie->pins[i], 0);
-
+        HAL_Delay(1);
 
         if (debug) HAL_Delay(2000);
         HAL_GPIO_WritePin(GPIOA, charlie->pins[i], 1);
