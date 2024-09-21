@@ -2,75 +2,32 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-// #include "py32f0xx_bsp_printf.h"
-
+#ifndef CHARLIE_H
+#define CHARLIE_H
 
 typedef struct {
+    uint16_t pinCount;
     uint16_t* pins;
-    uint8_t pinCount;
+} pinList_t;
 
+typedef struct {
+    pinList_t pins;
     uint8_t* matrixBuf;
 } charlie_t;
 
-typedef struct {
-    int segmentNumber[7];
-} segment_t;
 
-bool isSegmentActiveForNumber(int segmentNum, int number){
-    switch (number){
-        case 0:
-            return segmentNum != 3;
-        case 1:
-            return segmentNum == 5 || segmentNum == 2;
-        case 2:
-            return segmentNum != 1 && segmentNum != 5;
-        case 3:
-            return segmentNum != 1 && segmentNum != 4;
-        case 4:
-            return segmentNum == 1 || segmentNum == 2 || segmentNum == 3 || segmentNum == 5;
-        case 5:
-            return segmentNum != 2 && segmentNum != 4;
-        case 6:
-            return segmentNum != 2;
-        case 7:
-            return segmentNum == 0 || segmentNum == 2 || segmentNum == 5;
-        case 8:
-            return true;
-        case 9:
-            return segmentNum != 4;
-    }
-    return false;
-}
-
-void drawSevenSegment(charlie_t* charlie, segment_t* segment){
-    // charlie->matrixBuf[segment->segmentNumber[i]] = 1;
-    printf(" %c \n", charlie->matrixBuf[segment->segmentNumber[0]] ? '=' : ' ');
-
-    printf("%c %c\n",
-        charlie->matrixBuf[segment->segmentNumber[1]] ? '|' : ' ',
-        charlie->matrixBuf[segment->segmentNumber[2]] ? '|' : ' '
-    );
-    printf(" %c \n", charlie->matrixBuf[segment->segmentNumber[3]] ? '=' : ' ');
-
-    printf("%c %c\n",
-        charlie->matrixBuf[segment->segmentNumber[4]] ? '|' : ' ',
-        charlie->matrixBuf[segment->segmentNumber[5]] ? '|' : ' '
-    );
-    printf(" %c \n", charlie->matrixBuf[segment->segmentNumber[6]] ? '=' : ' ');
-}
-
-void setSevenSegment(charlie_t* charlie, segment_t* segment, int value){
-    for (int i = 0; i < 7; i++){
-        charlie->matrixBuf[segment->segmentNumber[i]] = isSegmentActiveForNumber(i, value);
-        // charlieSetPixel(charlie, 0, segment->segmentNumber[i], isSegmentActiveForNumber(i, value));
+void delayUs(int timeUs){
+    //system clock = 8mhz
+    for (int i = 0; i < timeUs; i++){
+        for (int j = 0; j < 4; j++){
+            __asm("nop");
+        }
     }
 }
-
 
 int charlieGetBufSize(charlie_t* charlie){
-    return charlie->pinCount * (charlie->pinCount -1);
+    return charlie->pins.pinCount * (charlie->pins.pinCount -1);
 }
-
 
 void charlieClear(charlie_t* charlie){
     int bufSize = charlieGetBufSize(charlie);
@@ -85,19 +42,12 @@ void charlieInit(charlie_t* charlie){
     charlieClear(charlie);
 }
 
-
 void charlieSetPixel(charlie_t* charlie, int x, int y, int value){
-    charlie->matrixBuf[x * charlie->pinCount + y] = value;
-}
-
-void charlieSet(charlie_t* charlie, segment_t* segment){
-    for (int i = 0; i < 7; i++){
-        charlie->matrixBuf[segment->segmentNumber[i]] = 1;
-    }
+    charlie->matrixBuf[x * charlie->pins.pinCount + y] = value;
 }
 
 void charliePrint(charlie_t* charlie){
-    int pinCount = charlie->pinCount;
+    int pinCount = charlie->pins.pinCount;
     for (int i = 0; i < pinCount-1; i++){
         for (int j = 0; j < (pinCount); j++){
             printf("%d " , charlie->matrixBuf[i * pinCount + j]);
@@ -118,60 +68,87 @@ void charliePrint(charlie_t* charlie){
   ((byte) & 0x01 ? '1' : '0') 
 
 
+#define SET_LOW 0
+#define SET_HIGH 1
+#define SET_TRI 2
+
+void setPinList(pinList_t* pins, int set){
+    static GPIO_InitTypeDef gpio;
+    gpio.Pull = GPIO_NOPULL;
+    gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+
+    uint16_t mask = 0;
+    for (int i = 0; i < pins->pinCount; i++){
+        mask |= pins->pins[i];
+    }
+    gpio.Pin = mask;
+    if (set == SET_LOW){
+        gpio.Mode = GPIO_MODE_OUTPUT_PP;
+        HAL_GPIO_Init(GPIOA, &gpio);
+        HAL_GPIO_WritePin(GPIOA, mask, 0);
+    } else if (set == SET_HIGH){
+        gpio.Mode = GPIO_MODE_OUTPUT_PP;
+        HAL_GPIO_Init(GPIOA, &gpio);
+        HAL_GPIO_WritePin(GPIOA, mask, 1);
+    } else if (set == SET_TRI){
+        gpio.Mode = GPIO_MODE_INPUT;
+        HAL_GPIO_Init(GPIOA, &gpio);
+    }
+}
+
+uint16_t buf1[6];
+uint16_t buf2[6];
+uint16_t buf3;
+
 void charlieRender(charlie_t* charlie, int debug){
+    pinList_t pinsToHi, pinsToTri, rowPinStruct;
+    pinsToHi.pins = buf1;
+    pinsToTri.pins = buf2;
+
+    rowPinStruct.pins = &buf3;
+    rowPinStruct.pinCount = 1;
+
     int offs = 0;
 
-    for (int i = 0; i < charlie->pinCount; i++){
-        int pinMaskHi = 0;
-        int pinMaskZ = 0;
+    for (int i = 0; i < charlie->pins.pinCount; i++){
+        int brightness = 0;
 
-        // printf("\n");
-        if (debug) printf("\n\rpin %d (%d)\n\r", i, charlie->pins[i]);
-        for (int j = 0; j < charlie->pinCount; j++){
+        pinsToHi.pinCount = 0;
+        pinsToTri.pinCount = 0;
+
+        if (debug) printf("\n\rpin %d (%d)\n\r", i, charlie->pins.pins[i]);
+        for (int j = 0; j < charlie->pins.pinCount; j++){
             if (i == j){
                 offs++;
             } else {
-                if (charlie->matrixBuf[i * charlie->pinCount + j - offs]){
-                    pinMaskHi |= charlie->pins[j];
+                if (charlie->matrixBuf[i * charlie->pins.pinCount + j - offs]){
+                    pinsToHi.pins[pinsToHi.pinCount++] = charlie->pins.pins[j];
+                    brightness++;
                 } else {
-                    pinMaskZ |= charlie->pins[j];
+                    pinsToTri.pins[pinsToTri.pinCount++] = charlie->pins.pins[j];
                 }
             }
         }
 
-        GPIO_InitTypeDef GPIO_InitStruct;
+        setPinList(&pinsToTri, SET_TRI);
+        setPinList(&pinsToHi, SET_HIGH);
 
-        GPIO_InitStruct.Pin = pinMaskZ;
-        GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-        GPIO_InitStruct.Pull = GPIO_NOPULL;
-        HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+        rowPinStruct.pins[0] = charlie->pins.pins[i];
+        setPinList(&rowPinStruct, SET_LOW);
+        delayUs(3*brightness);
+        //HAL_Delay(1);
 
-        if (debug) printf("ZZ "BYTE_TO_BINARY_PATTERN " " BYTE_TO_BINARY_PATTERN"\n\r",
-            BYTE_TO_BINARY(pinMaskZ>>8),
-            BYTE_TO_BINARY(pinMaskZ)
-        );
+        if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_RESET){
+            printf("pinCount: %d %d\n\r", pinsToHi.pinCount, pinsToTri.pinCount);
+            HAL_Delay(10);
+            while(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == GPIO_PIN_RESET);
+        }
 
-        GPIO_InitStruct.Pin = pinMaskHi | charlie->pins[i];
-        GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-        GPIO_InitStruct.Pull = GPIO_NOPULL;
-        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-        HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-        if (debug) printf("HI "BYTE_TO_BINARY_PATTERN " " BYTE_TO_BINARY_PATTERN"\n\r",
-            BYTE_TO_BINARY(pinMaskHi>>8),
-            BYTE_TO_BINARY(pinMaskHi)
-        );
-        HAL_GPIO_WritePin(GPIOA, pinMaskHi, 1);
-        
-        if (debug) printf("LO "BYTE_TO_BINARY_PATTERN " " BYTE_TO_BINARY_PATTERN"\n\r",
-            BYTE_TO_BINARY(charlie->pins[i]>>8),
-            BYTE_TO_BINARY(charlie->pins[i])
-        );
-        HAL_GPIO_WritePin(GPIOA, charlie->pins[i], 0);
-        HAL_Delay(1);
-
-        if (debug) HAL_Delay(2000);
-        HAL_GPIO_WritePin(GPIOA, charlie->pins[i], 1);
+        setPinList(&rowPinStruct, SET_HIGH);
     }
     if (debug) printf("\n");
+    // free(pinsToHi.pins);
+    // free(pinsToTri.pins);
 }
+
+#endif // CHARLIE_H

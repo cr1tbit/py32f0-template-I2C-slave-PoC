@@ -31,6 +31,7 @@
 #include "py32f0xx_bsp_printf.h"
 
 #include "charlie.h"
+#include "segment.h"
 
 // this print will slow the I2C read operation by a lot, but ESP32 should 
 // handle this well. 
@@ -116,12 +117,12 @@ void HAL_I2C_ListenCpltCallback(I2C_HandleTypeDef *hi2c)
   HAL_I2C_EnableListen_IT(hi2c);
 }
 
-#define PIN_LED1 GPIO_PIN_5
-#define PIN_LED2 GPIO_PIN_6
+#define PIN_LED1 GPIO_PIN_1
+#define PIN_LED2 GPIO_PIN_4
 #define PIN_LED3 GPIO_PIN_8
-#define PIN_LED4 GPIO_PIN_4
-#define PIN_LED5 GPIO_PIN_3
-#define PIN_LED6 GPIO_PIN_2
+#define PIN_LED4 GPIO_PIN_5
+#define PIN_LED5 GPIO_PIN_12
+#define PIN_LED6 GPIO_PIN_6
 
 void charlieplexInit(void)
 {
@@ -142,6 +143,11 @@ void charlieplexInit(void)
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
+
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 }
 
 
@@ -153,64 +159,37 @@ int main(void)
   segment_t segments[4] = {
     {{2, 3, 7, 8, 13, 5, 1}},
     {{27, 4, 6, 0, 20, 9, 24}},
-    {{11, 15, 10, 16, 12, 25, 14}},
+    {{11, 16, 10, 15, 12, 25, 14}},
     {{21, 26, 18, 29, 28, 22, 17}}  
   };
 
   charlie_t charlie = {
-    .pins = (uint16_t[]){
-      GPIO_PIN_1, GPIO_PIN_4, GPIO_PIN_5, 
-      GPIO_PIN_6, GPIO_PIN_8, GPIO_PIN_12},
-    .pinCount = 6
+    .pins = {
+      .pinCount = 6,
+      .pins = (uint16_t[]){PIN_LED1, PIN_LED2, PIN_LED3, PIN_LED4, PIN_LED5, PIN_LED6}
+    }
   };
 
   charlieInit(&charlie);
-  // for (int i = 0; i < 4; i++){
-  //     setSevenSegment(&charlie, &segments[i], i);
-  //     // drawSevenSegment(&charlie, &segments[i]);
-  // }
 
   BSP_USART_Config();
   printf("SystemClk is:%ld\r\n", SystemCoreClock);
   fflush(stdout);
-  // HAL_Delay(1000);
-
-  int number = 64;
-
-  for (int i = 0; i < 4; i++){
-      // printf("\n\rsetting %d\n\r", i);
-      setSevenSegment(&charlie, &segments[i], -1);
-      // for (int s = 0; s < 7; s++){
-      //   printf("%d ", segments[i].segmentNumber[s]);
-      // }
-      // drawSevenSegment(&charlie, &segments[i]);
-  }
+  int number = 0;
   
   while(1){
-    // HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
-    // // HAL_Delay(1);
-    // //delay for 1us
-    // printf("d");
-    // fflush(stdout);
-    
-    // for (int i = 0; i < 4; i++){
-    //     setSevenSegment(&charlie, &segments[i], -1);
-    //     // drawSevenSegment(&charlie, &segments[i]);
-    // }
-    // setSevenSegment(&charlie, &segments[number], 8);
-
-    number++;
-    if (number >= 30) number = 0;
-    printf("number %d\n\r", number);
+    number--;
+    if (number <= 0) number = 9999;
+    // printf("number %d\n\r", number);
     charlieClear(&charlie);
-    charlieSetPixel(&charlie, 0, number, 1);
-    // setSevenSegment(&charlie, &segments[number], 8);
 
-    for (int i = 0; i < 150; i++)
+    setSevenSegment(&charlie, &segments[3], number % 10);
+    setSevenSegment(&charlie, &segments[2], (number / 10) % 10);
+    setSevenSegment(&charlie, &segments[1], (number / 100) % 10);
+    setSevenSegment(&charlie, &segments[0], (number / 1000) % 10);
+
+    for (int i = 0; i < 10; i++)
     {
-      // charliePrint(&charlie);
-      // charlieClear(&charlie);
-      // charlieSetPixel(&charlie, 0, number, 1);
       charlieRender(&charlie,false);
     }
   }
